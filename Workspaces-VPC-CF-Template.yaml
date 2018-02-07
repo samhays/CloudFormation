@@ -48,6 +48,7 @@ Resources:
                   Value: !Ref EnvironmentName
     InternetGateway:
         Type: AWS::EC2::InternetGateway
+        DependsOn: VPC
         Properties:
             Tags:
                 - Key: Name
@@ -59,6 +60,7 @@ Resources:
             VpcId: !Ref VPC
     PublicSubnet1: 
         Type: AWS::EC2::Subnet
+        DependsOn: VPC
         Properties:
             VpcId: !Ref VPC
             AvailabilityZone: !Select [ 0, !GetAZs '' ]
@@ -69,6 +71,7 @@ Resources:
                   Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
     PublicSubnet2: 
         Type: AWS::EC2::Subnet
+        DependsOn: VPC
         Properties:
             VpcId: !Ref VPC
             AvailabilityZone: !Select [ 1, !GetAZs '' ]
@@ -79,6 +82,7 @@ Resources:
                   Value: !Sub ${EnvironmentName} Public Subnet (AZ2)
     TCMSubnet1: 
         Type: AWS::EC2::Subnet
+        DependsOn: VPC
         Properties:
             VpcId: !Ref VPC
             AvailabilityZone: !Select [ 0, !GetAZs '' ]
@@ -89,6 +93,7 @@ Resources:
                   Value: !Sub ${EnvironmentName} TCM Subnet (AZ1)
     TCMSubnet2: 
         Type: AWS::EC2::Subnet
+        DependsOn: VPC
         Properties:
             VpcId: !Ref VPC
             AvailabilityZone: !Select [ 1, !GetAZs '' ]
@@ -99,6 +104,7 @@ Resources:
                   Value: !Sub ${EnvironmentName} TCM Subnet (AZ2)
     PrivateSubnet1: 
         Type: AWS::EC2::Subnet
+        DependsOn: VPC
         Properties:
             VpcId: !Ref VPC
             AvailabilityZone: !Select [ 0, !GetAZs '' ]
@@ -109,6 +115,7 @@ Resources:
                   Value: !Sub ${EnvironmentName} Private Subnet (AZ1)
     PrivateSubnet2: 
         Type: AWS::EC2::Subnet
+        DependsOn: VPC
         Properties:
             VpcId: !Ref VPC
             AvailabilityZone: !Select [ 1, !GetAZs '' ]
@@ -246,8 +253,50 @@ Resources:
             RouteTableId: !Ref PrivateRouteTable2
             SubnetId: !Ref PrivateSubnet2
 
+    TCMInstance1:
+        Type: "AWS::EC2::Instance"
+        DependsOn: TCMSubnet1
+        Properties: 
+            AvailabilityZone: !Select [ 0, !GetAZs '' ]
+            ImageId: ami-2b322648
+            InstanceInitiatedShutdownBehavior: stop
+            InstanceType: m3.medium
+        #    KeyName: String
+        #    PrivateIpAddress: String
+        #    SecurityGroupIds: 
+        #      - String
+        #    SecurityGroups: 
+        #      - String
+            SourceDestCheck: True
+            SubnetId: !Ref TCMSubnet1
+            Tags: 
+              - Key: Name
+                Value: !Sub ${EnvironmentName} TCM Instance 1 (AZ1)
+    TCMInstance2:
+        Type: "AWS::EC2::Instance"
+        DependsOn: TCMSubnet2
+        Properties: 
+            AvailabilityZone: !Select [ 1, !GetAZs '' ]
+            ImageId: ami-2b322648
+            InstanceInitiatedShutdownBehavior: stop
+            InstanceType: m3.medium
+        #    KeyName: String
+        #    PrivateIpAddress: String
+        #    SecurityGroupIds: 
+        #      - String
+        #    SecurityGroups: 
+        #      - String
+            SourceDestCheck: True
+            SubnetId: !Ref TCMSubnet2
+            Tags: 
+              - Key: Name
+                Value: !Sub ${EnvironmentName} TCM Instance 2 (AZ2)
+
     TCMElasticLoadBalancer:    
       Type: "AWS::ElasticLoadBalancing::LoadBalancer"
+      DependsOn:
+       - TCMInstance1
+       - TCMInstance2
       Properties:
         CrossZone: True
         HealthCheck:
@@ -256,9 +305,9 @@ Resources:
           UnhealthyThreshold: '5'
           Interval: '30'
           Timeout: '5'
-#        Instances:
-#          - !Ref TCMInstance1
-#          - !Ref TCMInstance2
+        Instances:
+          - !Ref TCMInstance1
+          - !Ref TCMInstance2
         LoadBalancerName: TCM-LB
         Listeners:
         - LoadBalancerPort: '443'
