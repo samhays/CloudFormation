@@ -1,0 +1,78 @@
+
+Resources:
+
+  PublicNetworkAcl:
+      Type: "AWS::EC2::NetworkAcl"
+      Properties:
+      Tags:
+        - Key: Name 
+          Value: !Sub ${EnvironmentName} PublicNetworkAcl
+      VpcId:  !Ref VPC
+
+
+
+  TCMNetworkAcl:
+      Type: "AWS::EC2::NetworkAcl"
+      Properties:
+          Tags:
+            - Key: Name 
+              Value: !Sub ${EnvironmentName} TCMNetworkAcl
+      VpcId:  !Ref VPC
+
+
+
+
+
+  PrivateNetworkAcl:
+    Type: "AWS::EC2::NetworkAcl"
+    Properties:
+      Tags:
+        - Key: Name 
+          Value: !Sub ${EnvironmentName} PrivateNetworkAcl
+      VpcId:  !Ref VPC
+  PrivateNetworkAclEntryEgress1:
+    Type: "AWS::EC2::NetworkAclEntry"
+    Properties: 
+      CidrBlock: !Ref PublicSubnet1CIDR
+      Egress: true
+      NetworkAclId: !Ref PrivateNetworkAcl
+      Protocol: -1
+      RuleAction : deny
+      RuleNumber : 1
+  PrivateNetworkAclEntryIngress1:
+    Type: "AWS::EC2::NetworkAclEntry"
+    Properties: 
+      CidrBlock: !Ref PublicSubnet2CIDR
+      Egress: false
+      NetworkAclId: !Ref PrivateNetworkAcl
+      Protocol: -1
+      RuleAction : deny
+      RuleNumber : 1
+  PrivateNetworkAclEntryEgress2:
+    Type: "AWS::EC2::NetworkAclEntry"
+    Properties: 
+      CidrBlock: !Ref TCMSubnet1CIDR
+      Egress: true
+      NetworkAclId: !Ref PrivateNetworkAcl
+      Protocol: -1
+      RuleAction : deny
+      RuleNumber : 1
+  PrivateNetworkAclEntryIngress2:
+    Type: "AWS::EC2::NetworkAclEntry"
+    Properties: 
+      CidrBlock: !Ref TCMSubnet2CIDR
+      Egress: false
+      NetworkAclId: !Ref PrivateNetworkAcl
+      Protocol: -1
+      RuleAction : deny
+      RuleNumber : 1
+  PrivateNetworkAclAssociation1:
+    Type: "AWS::EC2::SubnetNetworkAclAssociation"
+    Properties:
+      SubnetId: PrivateSubnet1
+      NetworkAclId: PrivateNetworkAcl 
+  PrivateNetworkAclAssociation2:
+    Type: "AWS::EC2::SubnetNetworkAclAssociation"
+    Properties:
+      SubnetId: PrivateSubnet2
+      NetworkAclId: PrivateNetworkAcl 
