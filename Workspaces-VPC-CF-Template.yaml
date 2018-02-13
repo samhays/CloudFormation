@@ -1,5 +1,5 @@
 Description: 
-    This template deploys everything you need for a highly available workspaces 
+    This template deploys (almost) everything you need for a highly available workspaces 
     deployment with teradici connection managers (TCM) for on premis zero clients.
     It includes, a VPC, with a pair of public, private and TCM subnets spread 
     across  the first two Availability Zones. It deploys an Internet Gateway, with a default 
@@ -9,6 +9,12 @@ Description:
     Security groups for the TCM's and NACL's to deny all traffic from you private (workspaces) 
     subnets to the TCM and public subnets. Finally it deploys a VGW and attaches it to your VPC ready 
     for you to attach to a VPN connection or a Direct Connect VIF.
+
+    Before running deplying this template you will need to create and EC2 key pair and refrence it in 
+    the paramiters section, after deploying this template you will need to add a directory of your choice 
+    to the private subnets configure the TCM's and then you will be ready to deploy workspaces!
+
+    Enjoy
 
 Parameters:
     EnvironmentName:
