@@ -7,8 +7,10 @@ Description:
     it then deploys two TCM instances one in each TCM Subnet with appropriate routes to the NAT
     gateways and back on premis. Furthermore there is a ELB balancing between the TCM's, there are 
     Security groups for the TCM's and NACL's to deny all traffic from you private (workspaces) 
-    subnets to the TCM and public subnets. Finally it deploys a VGW and attaches it to your VPC ready 
-    for you to attach to a VPN connection or a Direct Connect VIF.
+    subnets to the TCM and public subnets. It also deploys a VGW and attaches it to your VPC, ready 
+    for you to attach to a VPN connection or a Direct Connect VIF. Finally it creates a ClientUser, 
+    ClientUserGroup and ClientUserPolicy for yo as an admin to hand over to whom is doing the desktop
+    management. 
 
     Before running deplying this template you will need to create and EC2 key pair and refrence it in 
     the paramiters section, after deploying this template you will need to add a directory of your choice 
