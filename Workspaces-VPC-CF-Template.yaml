@@ -37,23 +37,23 @@ Parameters:
         Type: String
         Default: 10.192.6.0/24
     TCMReturnRoutes:
-        Description: Please enter the IP range for the first subnet which you will be deploying Zero Clients into.  (on premise)
+        Description: Please enter the IP range (CIDR notation) for the first subnet which you will be deploying Zero Clients into.  (on premise)
         Type: String
         Default: 10.161.27.0/24
     TCMDNSCIDR:
-        Description: Please enter the IP CIDR block for the on premise DNS servers that will provide workspaces with DNS.
+        Description: Please enter the IP range (CIDR notation) for the on premise DNS servers that will provide workspaces with DNS.
         Type: String
         Default: 10.161.28.0/24
     TCMKerberosCIDR: 
-        Description: Please enter the IP CIDR block for the on premise AD server to provide Kerberos authentication.
+        Description: Please enter the IP range (CIDR notation) for the on premise AD server to provide Kerberos authentication.
         Type: String
         Default: 10.161.29.0/24
     TCMKeyPairName:
-        Description: Name of an existing EC2 KeyPair to enable SSH access to the TCM instances
+        Description: Name of an existing EC2 KeyPair to enable SSH access to the TCM instances.
         Type: AWS::EC2::KeyPair::KeyName
         ConstraintDescription: "must be the name of an existing EC2 KeyPair."
     ClientUserPassword: 
-        Description: Please enter a temporary password for the clients account to manage and provision workspaces.
+        Description: Please enter a temporary password for the clients account to manage and provision workspaces. (will be reset on first login)
         Type: String
         Default: Today1234
 
@@ -75,6 +75,7 @@ Resources:
             GroupName: ${EnvironmentName}-workspaces-provisioners
     ClientUserPolicy:    
         Type: "AWS::IAM::Policy"
+        DependsOn: ClientUserGroup
         Properties: 
             Groups: !Ref ClientUserGroup
             PolicyDocument: 
@@ -723,5 +724,3 @@ Outputs:
 
 # TODO
 # AD connector
-# PS Keys
-#block specific ports for NatGW - Internet traffic
