@@ -52,9 +52,50 @@ Parameters:
         Description: Name of an existing EC2 KeyPair to enable SSH access to the TCM instances
         Type: AWS::EC2::KeyPair::KeyName
         ConstraintDescription: "must be the name of an existing EC2 KeyPair."
+    ClientUserPassword: 
+        Description: Please enter a temporary password for the clients account to manage and provision workspaces.
+        Type: String
+        Default: Today1234
 
 
 Resources:
+#ClientUser
+    ClientUser:
+        Type: "AWS::IAM::User"
+        DependsOn: ClientUserGroup
+        Properties: 
+            Groups: !Ref ClientUserGroup
+            LoginProfile:
+                Password: !Ref ClientUserPassword
+                PasswordResetRequired: true
+            UserName: ${EnvironmentName}-workspaces-admin
+    ClientUserGroup:
+        Type: "AWS::IAM::Group"
+        Properties:
+            GroupName: ${EnvironmentName}-workspaces-provisioners
+    ClientUserPolicy:    
+        Type: "AWS::IAM::Policy"
+        Properties: 
+            Groups: !Ref ClientUserGroup
+            PolicyDocument: 
+                Version: "2012-10-17"
+                Statement: 
+                - 
+                    Effect: "Allow"
+                    Action: 
+                        - "cloudformation:Describe*"
+                        - "workspaces:*"
+                        - "ds:*"
+                        - "iam:GetRole"
+                        - "kms:ListAliases"
+                        - "kms:ListKeys"
+                        - "workdocs:RegisterDirectory"
+                        - "workdocs:DeregisterDirectory"
+                        - "workdocs:AddUserToGroup"
+                        - "workdocs:RemoveUserFromGroup"
+                    Resource: "*"
+            PolicyName: ${EnvironmentName}-workspaces-policy
+
 #INFRASCTRUCTURE
     VPC: 
         Type: AWS::EC2::VPC
@@ -661,12 +702,24 @@ Outputs:
     TCMSubnet2: 
         Description: A reference to the TCM subnet in the 2nd Availability Zone
         Value: !Ref TCMSubnet2
+    TCMInstance1:
+        Description: A reference to the TCM instance in the 1st Availability Zone
+        Value: !Ref TCMInstance1
+    TCMInstance2:
+        Description: A reference to the TCM instance in the 2nd Availability Zone
+        Value: !Ref TCMInstance2
+    TCMKeyPairName:
+        Description: The Key Pair name to access the TCM instances
+        Value: !Ref TCMKeyPairName
     TCMElasticLoadBalancer: 
         Description: A reference to the TCM elastic load balancer
         Value: !Ref TCMElasticLoadBalancer
-    NoIngressSecurityGroup:
-        Description: Security group with no ingress rule
-        Value: !Ref NoIngressSecurityGroup
+    ClientUserName:
+        Description: A refrence to the clients username for managing workspaces
+        Value: ${EnvironmentName}-workspaces-admin
+    ClientUserPassword:
+        Description: A refrence to the clients temporary password for managing workspaces (will be re-set on login)
+        Value: !Ref ClientUserPassword
 
 # TODO
 # AD connector
