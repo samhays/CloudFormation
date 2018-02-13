@@ -1,8 +1,14 @@
 Description: 
-    This template deploys a VPC, with a pair of public, private and TCM subnets spread 
-    across two Availability Zones. It deploys an Internet Gateway, with a default 
-    route on the public subnets. It deploys a pair of NAT Gateways (one in each AZ), 
-    and default routes for them in the TCM subnets.
+    This template deploys everything you need for a highly available workspaces 
+    deployment with teradici connection managers (TCM) for on premis zero clients.
+    It includes, a VPC, with a pair of public, private and TCM subnets spread 
+    across  the first two Availability Zones. It deploys an Internet Gateway, with a default 
+    route on the public subnets. It deploys a pair of NAT Gateways (one in each public subnet), 
+    it then deploys two TCM instances one in each TCM Subnet with appropriate routes to the NAT
+    gateways and back on premis. Furthermore there is a ELB balancing between the TCM's, there are 
+    Security groups for the TCM's and NACL's to deny all traffic from you private (workspaces) 
+    subnets to the TCM and public subnets. Finally it deploys a VGW and attaches it to your VPC ready 
+    for you to attach to a VPN connection or a Direct Connect VIF.
 
 Parameters:
     EnvironmentName:
