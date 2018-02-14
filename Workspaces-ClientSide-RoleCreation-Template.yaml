@@ -1,0 +1,34 @@
+Description:
+  This template produces the required permissions to allow a user from the CITEC-IAM-SECURITY account to switch to
+  this role and perform all administrative actions (apart from IAM).
+Parameters:
+
+
+Resources:   
+  RoleSwitchAdmin:
+      Type: "AWS::IAM::Role"
+      Properties:
+          RoleName: RoleSwitchAdmin
+  RoleSwitchPolicy:    
+      Type: "AWS::IAM::Policy"
+      DependsOn: RoleSwitchAdmin
+      Properties: 
+          Roles: !Ref RoleSwitchAdmin
+          PolicyDocument: 
+              Version: "2012-10-17"
+              Statement: 
+              - 
+                  Effect: "Allow"
+                  Action: "*"
+                  Resource: "*"
+                  Effect: "Deny"
+                  Action: "iam:*"
+                  Resource: "*"
+          PolicyName: ${EnvironmentName}RoleSwitchAdmin
+
+Outputs:
+
+
+
+
+

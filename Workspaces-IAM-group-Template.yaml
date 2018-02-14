@@ -1,0 +1,36 @@
+Description:
+
+Parameters:
+  EnvironmentName:
+    Description: An environment name that will be prefixed to resource names
+    Type: String
+  AccountID:
+    Description: Please enter the ID for the Clients account that will be deployed to.
+    Type: Number
+
+Resources:   
+  ClientUserGroup:
+      Type: "AWS::IAM::Group"
+      Properties:
+          GroupName: ${EnvironmentName}WorkspacesAdministators
+  ClientUserPolicy:    
+      Type: "AWS::IAM::Policy"
+      DependsOn: ClientUserGroup
+      Properties: 
+          Groups: !Ref ClientUserGroup
+          PolicyDocument: 
+              Version: "2012-10-17"
+              Statement: 
+              - 
+                  Sid: "Stmt1518568599000"
+                  Effect: "Allow"
+                  Action: 
+                      - "sts:AssumeRole"
+                  Resource: !Sub arn:aws:iam::${AccountID}:role/RoleSwitchAdmin
+                  Condition: 
+                    Bool: 
+                      "aws:MultiFactorAuthPresent": "false"
+          PolicyName: ${EnvironmentName}WorkspacesSwitchRolePolicy
+
+Outputs:
+

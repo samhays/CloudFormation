@@ -70,8 +70,6 @@ Parameters:
         Description: Please enter a temporary password for the clients account to manage and provision workspaces. (will be reset on first login)
         Type: String
         Default: Today1234
-
-
 Resources:
 #ClientUser
     ClientUser:
@@ -110,7 +108,6 @@ Resources:
                         - "workdocs:RemoveUserFromGroup"
                     Resource: "*"
             PolicyName: ${EnvironmentName}-workspaces-policy
-
 #INFRASCTRUCTURE
     VPC: 
         Type: AWS::EC2::VPC
@@ -688,7 +685,6 @@ Resources:
         Properties:
             SubnetId: !Ref PrivateSubnet2
             NetworkAclId: !Ref PrivateNetworkAcl 
-
 Outputs: 
     VPC: 
         Description: A reference to the created VPC
@@ -735,6 +731,3 @@ Outputs:
     ClientUserPassword:
         Description: A refrence to the clients temporary password for managing workspaces (will be re-set on login)
         Value: !Ref ClientUserPassword
-
-# TODO
-# AD connector
