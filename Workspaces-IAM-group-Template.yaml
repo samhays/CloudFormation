@@ -1,8 +1,8 @@
 Description:
-
+    This template deploys a group with a policy enabling users to switch to the new client account.
 Parameters:
-  EnvironmentName:
-    Description: An environment name that will be prefixed to resource names
+  ClientCode:
+    Description: An Client Code that will be prefixed to resource names (aka "QSS")
     Type: String
   AccountID:
     Description: Please enter the ID for the Clients account that will be deployed to.
@@ -12,7 +12,7 @@ Resources:
   ClientUserGroup:
       Type: "AWS::IAM::Group"
       Properties:
-          GroupName: ${EnvironmentName}WorkspacesAdministators
+          GroupName: ${ClientCode}WorkspacesAdministators
   ClientUserPolicy:    
       Type: "AWS::IAM::Policy"
       DependsOn: ClientUserGroup
@@ -30,7 +30,9 @@ Resources:
                   Condition: 
                     Bool: 
                       "aws:MultiFactorAuthPresent": "false"
-          PolicyName: ${EnvironmentName}WorkspacesSwitchRolePolicy
-
+          PolicyName: ${ClientCode}WorkspacesSwitchRolePolicy
 Outputs:
+    ClientUserPassword:
+        Description: A quick link to add to our OneNote Documentation that will allow users to pre-fill the roleswitching information.
+        Value: !Sub https://signin.aws.amazon.com/switchrole?account=${AccountID}&roleName=RoleSwitchAdmin&displayName=${ClientCode}-Workspaces 
 

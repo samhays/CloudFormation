@@ -1,8 +1,6 @@
 Description:
   This template produces the required permissions to allow a user from the CITEC-IAM-SECURITY account to switch to
   this role and perform all administrative actions (apart from IAM).
-Parameters:
-
 
 Resources:   
   RoleSwitchAdmin:
@@ -25,10 +23,3 @@ Resources:
                   Action: "iam:*"
                   Resource: "*"
           PolicyName: ${EnvironmentName}RoleSwitchAdmin
-
-Outputs:
-
-
-
-
-

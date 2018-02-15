@@ -1,0 +1,160 @@
+Description: 
+    This template deploys (almost) everything you need for a basic workspaces 
+    deployment without teradici connection managers (TCM).
+    It includes, a VPC, with a pair of private subnets spread 
+    across  the first two Availability Zones. It also deploys a VGW and attaches it to your VPC, ready 
+    for you to attach to a VPN connection or a Direct Connect VIF. Finally it creates a ClientUser, 
+    ClientUserGroup and ClientUserPolicy for you as an admin to hand over to whom is doing the desktop
+    management. 
+
+    Enjoy
+
+Parameters:
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+    VpcCIDR: 
+        Description: Please enter the IP range (CIDR notation) for this VPC
+        Type: String
+        Default: 10.192.0.0/16      
+    PrivateSubnet1CIDR:
+        Description: Please enter the IP range (CIDR notation) for the private (workspaces) subnet in the first Availability Zone
+        Type: String
+        Default: 10.192.5.0/24
+    PrivateSubnet2CIDR:
+        Description: Please enter the IP range (CIDR notation) for the private (workspaces) subnet in the second Availability Zone
+        Type: String
+        Default: 10.192.6.0/24
+    ClientUserPassword: 
+        Description: Please enter a temporary password for the clients account to manage and provision workspaces. (will be reset on first login)
+        Type: String
+        Default: Today1234
+Resources:
+#ClientUser
+    ClientUser:
+        Type: "AWS::IAM::User"
+        DependsOn: ClientUserGroup
+        Properties: 
+            Groups: !Ref ClientUserGroup
+            LoginProfile:
+                Password: !Ref ClientUserPassword
+                PasswordResetRequired: true
+            UserName: ${EnvironmentName}-workspaces-admin
+    ClientUserGroup:
+        Type: "AWS::IAM::Group"
+        Properties:
+            GroupName: ${EnvironmentName}-workspaces-provisioners
+    ClientUserPolicy:    
+        Type: "AWS::IAM::Policy"
+        DependsOn: ClientUserGroup
+        Properties: 
+            Groups: !Ref ClientUserGroup
+            PolicyDocument: 
+                Version: "2012-10-17"
+                Statement: 
+                - 
+                    Effect: "Allow"
+                    Action: 
+                        - "cloudformation:Describe*"
+                        - "workspaces:*"
+                        - "ds:*"
+                        - "iam:GetRole"
+                        - "kms:ListAliases"
+                        - "kms:ListKeys"
+                        - "workdocs:RegisterDirectory"
+                        - "workdocs:DeregisterDirectory"
+                        - "workdocs:AddUserToGroup"
+                        - "workdocs:RemoveUserFromGroup"
+                    Resource: "*"
+            PolicyName: ${EnvironmentName}-workspaces-policy
+#INFRASCTRUCTURE
+    VPC: 
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: !Ref VpcCIDR
+            Tags: 
+                - Key: Name 
+                  Value: !Ref EnvironmentName
+    PrivateSubnet1: 
+        Type: AWS::EC2::Subnet
+        DependsOn: VPC
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 0, !GetAZs '' ]
+            CidrBlock: !Ref PrivateSubnet1CIDR
+            MapPublicIpOnLaunch: false
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} Private Subnet (AZ1)
+    PrivateSubnet2: 
+        Type: AWS::EC2::Subnet
+        DependsOn: VPC
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 1, !GetAZs '' ]
+            CidrBlock: !Ref PrivateSubnet2CIDR
+            MapPublicIpOnLaunch: false
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
+    VirtualPrivateGateway:     
+      Type: AWS::EC2::VPNGateway
+      Properties: 
+        Type: ipsec.1
+        Tags:
+          - Key: Name 
+            Value: !Sub ${EnvironmentName} VPC-VGW
+    VGWAttachment:
+      Type: "AWS::EC2::VPCGatewayAttachment"
+      DependsOn: 
+       - VirtualPrivateGateway
+       - VPC
+      Properties: 
+        VpcId: !Ref VPC
+        VpnGatewayId: !Ref VirtualPrivateGateway
+#PrivateRouteTable1
+    PrivateRouteTable1:
+       Type: AWS::EC2::RouteTable
+       Properties: 
+            VpcId: !Ref VPC
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} Private Routes (AZ1)
+    DefaultPrivateRoute1:
+        Type: AWS::EC2::Route
+        DependsOn: 
+         - VGWAttachment
+         - PrivateRouteTable1
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable1
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId: !Ref VirtualPrivateGateway
+    PrivateSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        DependsOn: 
+         - PrivateSubnet1
+         - PrivateRouteTable1        
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable1
+            SubnetId: !Ref PrivateSubnet1
+    PrivateSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        DependsOn: 
+         - PrivateSubnet2
+         - PrivateRouteTable1        
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable1
+            SubnetId: !Ref PrivateSubnet2
+Outputs: 
+    VPC: 
+        Description: A reference to the created VPC
+        Value: !Ref VPC
+    PrivateSubnets:
+        Description: A list of the private subnets
+        Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
+     ClientUserName:
+        Description: A refrence to the clients username for managing workspaces
+        Value: ${EnvironmentName}-workspaces-admin
+    ClientUserPassword:
+        Description: A refrence to the clients temporary password for managing workspaces (will be re-set on login)
+        Value: !Ref ClientUserPassword

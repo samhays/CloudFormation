@@ -1,0 +1,486 @@
+Description: 
+    This template deploys (almost) everything you need for a workspaces 
+    deployment with a teradici connection manager (TCM) for on premis zero clients.
+    It includes, a VPC, with a public & TCM subnet and a pair of private subnets spread 
+    across  the first two Availability Zones. It deploys an Internet Gateway, with a default 
+    route on the public subnets. It deploys a NAT Gateway, 
+    it then deploys a TCM instance in the TCM Subnet with appropriate routes to the NAT
+    gateways and back on premis. Furthermore there are security groups for the TCM's and NACL's 
+    to deny all traffic from you private (workspaces) 
+    subnets to the TCM and public subnets. It also deploys a VGW and attaches it to your VPC, ready 
+    for you to attach to a VPN connection or a Direct Connect VIF. Finally it creates a ClientUser, 
+    ClientUserGroup and ClientUserPolicy for yo as an admin to hand over to whom is doing the desktop
+    management. 
+
+    Before running deplying this template you will need to create and EC2 key pair and refrence it in 
+    the paramiters section, after deploying this template you will need to add a directory of your choice 
+    to the private subnets configure the TCM's and then you will be ready to deploy workspaces!
+
+    Enjoy
+
+Parameters:
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+    VpcCIDR: 
+        Description: Please enter the IP range (CIDR notation) for this VPC
+        Type: String
+        Default: 10.192.0.0/16
+    PublicSubnet1CIDR:
+        Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+        Type: String
+        Default: 10.192.1.0/28
+    TCMSubnet1CIDR:
+        Description: Please enter the IP range (CIDR notation) for the TCM subnet in the first Availability Zone
+        Type: String
+        Default: 10.192.3.0/28       
+    PrivateSubnet1CIDR:
+        Description: Please enter the IP range (CIDR notation) for the private (workspaces) subnet in the first Availability Zone
+        Type: String
+        Default: 10.192.5.0/24
+    PrivateSubnet2CIDR:
+        Description: Please enter the IP range (CIDR notation) for the private (workspaces) subnet in the second Availability Zone
+        Type: String
+        Default: 10.192.6.0/24
+    TCMReturnRoutes:
+        Description: Please enter the IP range (CIDR notation) for the first subnet which you will be deploying Zero Clients into.  (on premise)
+        Type: String
+        Default: 10.161.27.0/24
+    TCMDNSCIDR:
+        Description: Please enter the IP range (CIDR notation) for the on premise DNS servers that will provide workspaces with DNS.
+        Type: String
+        Default: 10.161.28.0/24
+    TCMKerberosCIDR: 
+        Description: Please enter the IP range (CIDR notation) for the on premise AD server to provide Kerberos authentication.
+        Type: String
+        Default: 10.161.29.0/24
+    TCMKeyPairName:
+        Description: Name of an existing EC2 KeyPair to enable SSH access to the TCM instances.
+        Type: AWS::EC2::KeyPair::KeyName
+        ConstraintDescription: "must be the name of an existing EC2 KeyPair."
+    ClientUserPassword: 
+        Description: Please enter a temporary password for the clients account to manage and provision workspaces. (will be reset on first login)
+        Type: String
+        Default: Today1234
+Resources:
+#ClientUser
+    ClientUser:
+        Type: "AWS::IAM::User"
+        DependsOn: ClientUserGroup
+        Properties: 
+            Groups: !Ref ClientUserGroup
+            LoginProfile:
+                Password: !Ref ClientUserPassword
+                PasswordResetRequired: true
+            UserName: ${EnvironmentName}-workspaces-admin
+    ClientUserGroup:
+        Type: "AWS::IAM::Group"
+        Properties:
+            GroupName: ${EnvironmentName}-workspaces-provisioners
+    ClientUserPolicy:    
+        Type: "AWS::IAM::Policy"
+        DependsOn: ClientUserGroup
+        Properties: 
+            Groups: !Ref ClientUserGroup
+            PolicyDocument: 
+                Version: "2012-10-17"
+                Statement: 
+                - 
+                    Effect: "Allow"
+                    Action: 
+                        - "cloudformation:Describe*"
+                        - "workspaces:*"
+                        - "ds:*"
+                        - "iam:GetRole"
+                        - "kms:ListAliases"
+                        - "kms:ListKeys"
+                        - "workdocs:RegisterDirectory"
+                        - "workdocs:DeregisterDirectory"
+                        - "workdocs:AddUserToGroup"
+                        - "workdocs:RemoveUserFromGroup"
+                    Resource: "*"
+            PolicyName: ${EnvironmentName}-workspaces-policy
+#INFRASCTRUCTURE
+    VPC: 
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: !Ref VpcCIDR
+            Tags: 
+                - Key: Name 
+                  Value: !Ref EnvironmentName
+    InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        DependsOn: VPC
+        Properties:
+            Tags:
+                - Key: Name
+                  Value: !Ref EnvironmentName
+    InternetGatewayAttachment:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            InternetGatewayId: !Ref InternetGateway
+            VpcId: !Ref VPC
+    PublicSubnet1: 
+        Type: AWS::EC2::Subnet
+        DependsOn: VPC
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 0, !GetAZs '' ]
+            CidrBlock: !Ref PublicSubnet1CIDR
+            MapPublicIpOnLaunch: true
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
+    TCMSubnet1: 
+        Type: AWS::EC2::Subnet
+        DependsOn: VPC
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 0, !GetAZs '' ]
+            CidrBlock: !Ref TCMSubnet1CIDR
+            MapPublicIpOnLaunch: false
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} TCM Subnet (AZ1)
+    PrivateSubnet1: 
+        Type: AWS::EC2::Subnet
+        DependsOn: VPC
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 0, !GetAZs '' ]
+            CidrBlock: !Ref PrivateSubnet1CIDR
+            MapPublicIpOnLaunch: false
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} Private Subnet (AZ1)
+    PrivateSubnet2: 
+        Type: AWS::EC2::Subnet
+        DependsOn: VPC
+        Properties:
+            VpcId: !Ref VPC
+            AvailabilityZone: !Select [ 1, !GetAZs '' ]
+            CidrBlock: !Ref PrivateSubnet2CIDR
+            MapPublicIpOnLaunch: false
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} Private Subnet (AZ2)
+    TCMInstance1:
+        Type: "AWS::EC2::Instance"
+        DependsOn: 
+         - TCMSubnet1
+         - TCMSecurityGroup1
+        Properties: 
+            AvailabilityZone: !Select [ 0, !GetAZs '' ]
+            ImageId: ami-2b322648
+            InstanceInitiatedShutdownBehavior: stop
+            InstanceType: m3.medium
+            KeyName: !Ref TCMKeyPairName
+            SecurityGroupIds: 
+              - !Ref TCMSecurityGroup1
+            SourceDestCheck: True
+            SubnetId: !Ref TCMSubnet1
+            Tags: 
+              - Key: Name
+                Value: !Sub ${EnvironmentName} TCM Instance 1 (AZ1)
+    VirtualPrivateGateway:     
+      Type: AWS::EC2::VPNGateway
+      Properties: 
+        Type: ipsec.1
+        Tags:
+          - Key: Name 
+            Value: !Sub ${EnvironmentName} VPC-VGW
+    VGWAttachment:
+      Type: "AWS::EC2::VPCGatewayAttachment"
+      DependsOn: 
+       - VirtualPrivateGateway
+       - VPC
+      Properties: 
+        VpcId: !Ref VPC
+        VpnGatewayId: !Ref VirtualPrivateGateway
+#NAT GATEWAYS
+    NatGateway1EIP:
+        Type: AWS::EC2::EIP
+        DependsOn: InternetGatewayAttachment
+        Properties: 
+            Domain: vpc
+    NatGateway1: 
+        Type: AWS::EC2::NatGateway
+        Properties: 
+            AllocationId: !GetAtt NatGateway1EIP.AllocationId
+            SubnetId: !Ref PublicSubnet1
+            Tags:
+              - Key: Name 
+                Value: !Sub ${EnvironmentName} NatGateway1
+#PublicRouteTable
+    PublicRouteTable:
+        Type: AWS::EC2::RouteTable
+        Properties: 
+            VpcId: !Ref VPC
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} Public Routes
+    DefaultPublicRoute: 
+        Type: AWS::EC2::Route
+        DependsOn: InternetGatewayAttachment
+        Properties: 
+            RouteTableId: !Ref PublicRouteTable
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId: !Ref InternetGateway
+    PublicSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            RouteTableId: !Ref PublicRouteTable
+            SubnetId: !Ref PublicSubnet1
+#TCMRouteTable1
+    TCMRouteTable1:
+        Type: AWS::EC2::RouteTable
+        Properties: 
+            VpcId: !Ref VPC
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} TCM Routes (AZ1)
+    DefaultTCMRoute1:
+        Type: AWS::EC2::Route
+        DependsOn:
+         - NatGateway1
+         - TCMRouteTable1
+        Properties:
+            RouteTableId: !Ref TCMRouteTable1
+            DestinationCidrBlock: 0.0.0.0/0
+            NatGatewayId: !Ref NatGateway1
+    ReturnTCMRoute1:
+        Type: AWS::EC2::Route
+        DependsOn:
+         - VGWAttachment
+         - TCMRouteTable1
+        Properties:
+            RouteTableId: !Ref TCMRouteTable1
+            DestinationCidrBlock: !Ref TCMReturnRoutes
+            GatewayId: !Ref VirtualPrivateGateway
+    ReturnTCMRoute3:
+        Type: AWS::EC2::Route
+        DependsOn:
+         - VGWAttachment
+         - TCMRouteTable1
+        Properties:
+            RouteTableId: !Ref TCMRouteTable1
+            DestinationCidrBlock: !Ref TCMDNSCIDR
+            GatewayId: !Ref VirtualPrivateGateway
+    ReturnTCMRoute5:
+        Type: AWS::EC2::Route
+        DependsOn:
+         - VGWAttachment
+         - TCMRouteTable1
+        Properties:
+            RouteTableId: !Ref TCMRouteTable1
+            DestinationCidrBlock: !Ref TCMKerberosCIDR
+            GatewayId: !Ref VirtualPrivateGateway
+    TCMSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        DependsOn:
+         - TCMSubnet1
+         - TCMRouteTable1
+        Properties:
+            RouteTableId: !Ref TCMRouteTable1
+            SubnetId: !Ref TCMSubnet1
+#PrivateRouteTable1
+    PrivateRouteTable1:
+       Type: AWS::EC2::RouteTable
+       Properties: 
+            VpcId: !Ref VPC
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} Private Routes (AZ1)
+    DefaultPrivateRoute1:
+        Type: AWS::EC2::Route
+        DependsOn: 
+         - VGWAttachment
+         - PrivateRouteTable1
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable1
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId: !Ref VirtualPrivateGateway
+    PrivateSubnet1RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        DependsOn: 
+         - PrivateSubnet1
+         - PrivateRouteTable1        
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable1
+            SubnetId: !Ref PrivateSubnet1
+#PrivateRouteTable2
+    PrivateRouteTable2:
+        Type: AWS::EC2::RouteTable
+        Properties: 
+            VpcId: !Ref VPC
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} Private Routes (AZ2)
+    DefaultPrivateRoute2:
+        Type: AWS::EC2::Route
+        DependsOn: VGWAttachment
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable2
+            DestinationCidrBlock: 0.0.0.0/0
+            GatewayId: !Ref VirtualPrivateGateway
+    PrivateSubnet2RouteTableAssociation:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        DependsOn: 
+         - PrivateSubnet2
+         - PrivateRouteTable2 
+        Properties:
+            RouteTableId: !Ref PrivateRouteTable2
+            SubnetId: !Ref PrivateSubnet2
+#SECURITY GROUPS
+    NoIngressSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupName: "no-ingress-sg"
+            GroupDescription: "Security group with no ingress rule"
+            VpcId: !Ref VPC
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} NoIngressSecurityGroup
+
+    TCMSecurityGroup1:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupName: "TCM-SG1"
+            GroupDescription: "Security group to allow TCMInstance1 to communicate with NatGateway1 in AZ1"
+            VpcId: !Ref VPC
+            SecurityGroupEgress:
+                - IpProtocol: '6'
+                  FromPort: '80'
+                  ToPort: '80'
+                  CidrIp: 0.0.0.0/0
+                - IpProtocol: '6'
+                  FromPort: '443'
+                  ToPort: '443'
+                  CidrIp: 0.0.0.0/0
+                - IpProtocol: '6'
+                  FromPort: '4172'
+                  ToPort: '4172'
+                  CidrIp: 0.0.0.0/0
+                - IpProtocol: '17'
+                  FromPort: '123'
+                  ToPort: '123'
+                  CidrIp: 0.0.0.0/0
+                - IpProtocol: '6'
+                  FromPort: '88'
+                  ToPort: '88'
+                  CidrIp: !Ref TCMKerberosCIDR
+                - IpProtocol: '17'
+                  FromPort: '53'
+                  ToPort: '53'
+                  CidrIp: !Ref TCMDNSCIDR
+            SecurityGroupIngress:
+Outputs:
+                - IpProtocol: '6'
+                  FromPort: '443'
+                  ToPort: '443'
+                  CidrIp: !Ref TCMReturnRoutes
+                - IpProtocol: '6'
+                  FromPort: '22'
+                  ToPort: '22'
+                  CidrIp: 10.160.62.22/32
+                - IpProtocol: '6'
+                  FromPort: '22'
+                  ToPort: '22'
+                  CidrIp: 10.160.62.21/32
+            Tags: 
+                - Key: Name 
+                  Value: !Sub ${EnvironmentName} TCM Security Group 1
+#NETWORK ACCESS CONTROL LISTS
+    PrivateNetworkAcl:
+        Type: "AWS::EC2::NetworkAcl"
+        Properties:
+            Tags:
+              - Key: Name 
+                Value: !Sub ${EnvironmentName} PrivateNetworkAcl
+            VpcId:  !Ref VPC
+    PrivateNetworkAclEntryEgress1:
+        Type: "AWS::EC2::NetworkAclEntry"
+        DependsOn: PrivateNetworkAcl
+        Properties: 
+            CidrBlock: !Ref PublicSubnet1CIDR
+            Egress: true
+            NetworkAclId: !Ref PrivateNetworkAcl
+            Protocol: -1
+            RuleAction : deny
+            RuleNumber : 1
+    PrivateNetworkAclEntryEgress2:
+        Type: "AWS::EC2::NetworkAclEntry"
+        DependsOn: PrivateNetworkAcl
+        Properties: 
+            CidrBlock: !Ref TCMSubnet1CIDR
+            Egress: true
+            NetworkAclId: !Ref PrivateNetworkAcl
+            Protocol: -1
+            RuleAction : deny
+            RuleNumber : 2
+    PrivateNetworkAclEntryIngress1:
+        Type: "AWS::EC2::NetworkAclEntry"
+        Properties: 
+            CidrBlock: !Ref PublicSubnet1CIDR
+            Egress: false
+            NetworkAclId: !Ref PrivateNetworkAcl
+            Protocol: -1
+            RuleAction : deny
+            RuleNumber : 1
+    PrivateNetworkAclEntryIngress2:
+        Type: "AWS::EC2::NetworkAclEntry"
+        DependsOn: PrivateNetworkAcl
+        Properties: 
+            CidrBlock: !Ref TCMSubnet1CIDR
+            Egress: false
+            NetworkAclId: !Ref PrivateNetworkAcl
+            Protocol: -1
+            RuleAction : deny
+            RuleNumber : 2
+    PrivateNetworkAclAssociation1:
+        Type: "AWS::EC2::SubnetNetworkAclAssociation"
+        DependsOn:
+         - PrivateSubnet1
+         - PrivateNetworkAcl
+        Properties:
+            SubnetId: !Ref PrivateSubnet1
+            NetworkAclId: !Ref PrivateNetworkAcl 
+    PrivateNetworkAclAssociation2:
+        Type: "AWS::EC2::SubnetNetworkAclAssociation"
+        DependsOn:
+         - PrivateSubnet2
+         - PrivateNetworkAcl
+        Properties:
+            SubnetId: !Ref PrivateSubnet2
+            NetworkAclId: !Ref PrivateNetworkAcl 
+Outputs: 
+    VPC: 
+        Description: A reference to the created VPC
+        Value: !Ref VPC
+    PrivateSubnets:
+        Description: A list of the private subnets
+        Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
+    PublicSubnet1:
+        Description: A reference to the public subnet in the 1st Availability Zone
+        Value: !Ref PublicSubnet1
+    PrivateSubnet1:
+        Description: A reference to the private subnet in the 1st Availability Zone
+        Value: !Ref PrivateSubnet1
+    PrivateSubnet2: 
+        Description: A reference to the private subnet in the 2nd Availability Zone
+        Value: !Ref PrivateSubnet2
+    TCMSubnet1:
+        Description: A reference to the TCM subnet in the 1st Availability Zone
+        Value: !Ref TCMSubnet1
+    TCMInstance1:
+        Description: A reference to the TCM instance in the 1st Availability Zone
+        Value: !Ref TCMInstance1
+    TCMKeyPairName:
+        Description: The Key Pair name to access the TCM instances
+        Value: !Ref TCMKeyPairName
+    ClientUserName:
+        Description: A refrence to the clients username for managing workspaces
+        Value: ${EnvironmentName}-workspaces-admin
+    ClientUserPassword:
+        Description: A refrence to the clients temporary password for managing workspaces (will be re-set on login)
+        Value: !Ref ClientUserPassword
